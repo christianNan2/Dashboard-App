@@ -299,9 +299,9 @@ async function loadCategories() {
   });
 
   const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]).slice(0, 6);
-  const labels = sorted.map(([id]) => catMap[id]?.name || 'Other');
+  const labels = sorted.map(([id]) => catMap[Number(id)]?.name || 'Other');
   const data = sorted.map(([, v]) => v);
-  const colors = sorted.map(([id]) => catMap[id]?.color || '#aaa');
+  const colors = sorted.map(([id]) => catMap[Number(id)]?.color || '#aaa');
 
   const ctx = document.getElementById('categoriesChart').getContext('2d');
   if (categoriesChart) categoriesChart.destroy();
@@ -326,28 +326,32 @@ async function loadCategories() {
     }
   });
 
-  // Center text
+  // Center text plugin
   const total = data.reduce((s, v) => s + v, 0);
-  const grandPct = '100%';
-  const plugin = {
+  categoriesChart.options.plugins.tooltip.callbacks.label = (c) => {
+    const pct = total > 0 ? ((c.raw / total) * 100).toFixed(1) : 0;
+    return ` ${c.label}: ${pct}%`;
+  };
+  const centerPlugin = {
     id: 'centerText',
     afterDraw(chart) {
-      const { ctx: c, chartArea: { left, right, top, bottom } } = chart;
-      const cx = (left + right) / 2;
-      const cy = (top + bottom) / 2;
+      const { ctx: c, chartArea } = chart;
+      if (!chartArea) return;
+      const cx = (chartArea.left + chartArea.right) / 2;
+      const cy = (chartArea.top + chartArea.bottom) / 2;
       c.save();
       c.font = 'bold 14px Inter';
       c.fillStyle = isDark() ? '#fff' : '#1e293b';
       c.textAlign = 'center';
       c.textBaseline = 'middle';
-      c.fillText(grandPct, cx, cy - 6);
+      c.fillText('100%', cx, cy - 6);
       c.font = '9px Inter';
       c.fillStyle = '#94a3b8';
       c.fillText('expenses', cx, cy + 10);
       c.restore();
     }
   };
-  categoriesChart.config.plugins = [plugin];
+  categoriesChart.config.plugins = [centerPlugin];
   categoriesChart.update();
 }
 
@@ -436,7 +440,7 @@ async function loadSpending() {
 
   const grid = document.getElementById('spendingGrid');
   grid.innerHTML = sorted.map(([catId, total]) => {
-    const cat = catMap[catId] || { name: '?', color: '#888' };
+    const cat = catMap[Number(catId)] || { name: '?', color: '#888' };
     const pct = Math.round(total / maxVal * 100);
     const r = 30, circ = 2 * Math.PI * r;
     const offset = circ - (pct / 100) * circ;
@@ -478,8 +482,8 @@ async function loadTransactions(search = '') {
   const container = document.getElementById('transactionsList');
   container.innerHTML = filtered.slice(0, 5).map(t => {
     const cat = catMap[t.category_id] || { name: 'Other', icon: '📦', color: '#aaa' };
-    const d = new Date(t.date);
-    const dateStr = `${d.toLocaleString('en', { month: 'short' })} ${String(d.getDate()).padStart(2, '0')}, ${d.getHours() || 17}:${String(d.getMinutes() || 45).padStart(2, '0')}`;
+    const d = new Date(t.date + 'T12:00:00');
+    const dateStr = `${d.toLocaleString('en', { month: 'short' })} ${String(d.getDate()).padStart(2, '0')}, ${String(8 + Math.floor(Math.random()*12)).padStart(2,'0')}:${String(Math.floor(Math.random()*60)).padStart(2, '0')}`;
     return `
       <div class="flex items-center gap-3">
         <div class="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style="background:${cat.color}22">${cat.icon}</div>
@@ -521,7 +525,7 @@ async function loadWeekly() {
     }
   });
 
-  const labels = weekDays.map(d => dayNames[new Date(d).getDay()]);
+  const labels = weekDays.map(d => dayNames[new Date(d + 'T12:00:00').getDay()]);
   const incomeData = weekDays.map(d => days[d].income);
   const expenseData = weekDays.map(d => days[d].expenses);
 
@@ -604,14 +608,14 @@ async function loadAggregate() {
     switch (groupBy) {
       case 'month': key = t.date.substring(0, 7); break;
       case 'week': {
-        const d = new Date(t.date);
+        const d = new Date(t.date + 'T12:00:00');
         const oneJan = new Date(d.getFullYear(), 0, 1);
         const wk = Math.ceil(((d - oneJan) / 86400000 + oneJan.getDay() + 1) / 7);
         key = `${d.getFullYear()}-W${String(wk).padStart(2, '0')}`;
         break;
       }
       case 'day': key = t.date; break;
-      case 'category': key = catMap[t.category_id]?.name || 'Other'; break;
+      case 'category': key = catMap[Number(t.category_id)]?.name || 'Other'; break;
       default: key = t.date.substring(0, 7);
     }
     if (!groups[key]) groups[key] = [];
