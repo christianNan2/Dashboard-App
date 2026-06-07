@@ -117,30 +117,33 @@
 
         <!-- Chart Controls -->
         <div class="bg-card-light dark:bg-card-dark rounded-2xl border border-gray-100 dark:border-gray-800 p-6 card-hover">
-          <h3 class="font-semibold text-lg mb-4">Chart Configuration</h3>
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-semibold text-lg">Chart Configuration</h3>
+            <button onclick="saveCurrentView()" class="bg-brand hover:bg-brand/90 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">Save View</button>
+          </div>
           <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <label class="block text-xs text-gray-500 dark:text-gray-400 mb-2">Label Column</label>
-              <select id="colLabel" onchange="updateChart()" class="w-full bg-surface-light dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+              <select id="vizLabel" onchange="updateChart()" class="w-full bg-surface-light dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
                 <option value="">Select column...</option>
               </select>
             </div>
             <div>
               <label class="block text-xs text-gray-500 dark:text-gray-400 mb-2">Value Column(s)</label>
-              <select id="colValues" multiple onchange="updateChart()" class="w-full bg-surface-light dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50" style="min-height: 80px;">
+              <select id="vizValues" multiple onchange="updateChart()" class="w-full bg-surface-light dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50" style="min-height: 80px;">
                 <option value="">Select columns...</option>
               </select>
               <p class="text-xs text-gray-400 mt-1">Ctrl+Click for multiple</p>
             </div>
             <div>
               <label class="block text-xs text-gray-500 dark:text-gray-400 mb-2">Group By</label>
-              <select id="groupBy" onchange="updateChart()" class="w-full bg-surface-light dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+              <select id="vizGroupBy" onchange="updateChart()" class="w-full bg-surface-light dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
                 <option value="none">None</option>
               </select>
             </div>
             <div>
               <label class="block text-xs text-gray-500 dark:text-gray-400 mb-2">Aggregate</label>
-              <select id="aggType" onchange="updateChart()" class="w-full bg-surface-light dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+              <select id="vizAggType" onchange="updateChart()" class="w-full bg-surface-light dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
                 <option value="none">None</option>
                 <option value="sum">Sum</option>
                 <option value="avg">Average</option>
@@ -151,6 +154,30 @@
             </div>
           </div>
           <button onclick="resetData()" class="mt-4 text-xs text-red-500 hover:text-red-600 font-medium">Clear All Data</button>
+        </div>
+
+        <div class="bg-card-light dark:bg-card-dark rounded-2xl border border-gray-100 dark:border-gray-800 p-6 card-hover">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-semibold text-lg">Datasets</h3>
+            <button onclick="loadDatasets()" class="text-xs px-2.5 py-1 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-white/5">Refresh</button>
+          </div>
+          <div id="datasetList" class="space-y-2">
+            <p class="text-xs text-gray-500 dark:text-gray-400">No datasets yet.</p>
+          </div>
+        </div>
+
+        <div class="bg-card-light dark:bg-card-dark rounded-2xl border border-gray-100 dark:border-gray-800 p-6 card-hover">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-semibold text-lg">Visualization History</h3>
+            <div class="flex items-center gap-2">
+              <button onclick="exportBackup()" class="text-xs px-2.5 py-1 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-white/5">Export Backup</button>
+              <button onclick="document.getElementById('backupFile').click()" class="text-xs px-2.5 py-1 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-white/5">Import Backup</button>
+              <input id="backupFile" type="file" accept=".json" class="hidden" onchange="importBackupFile(this)" />
+            </div>
+          </div>
+          <div id="historyList" class="space-y-2">
+            <p class="text-xs text-gray-500 dark:text-gray-400">No saved views yet.</p>
+          </div>
         </div>
       </div>
     </main>
@@ -194,12 +221,12 @@
         <div class="grid grid-cols-2 gap-4 mb-6">
           <div>
             <label class="block text-xs text-gray-500 dark:text-gray-400 mb-2">Label Column</label>
-            <select id="colLabel" class="w-full bg-surface-light dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+            <select id="importColLabel" class="w-full bg-surface-light dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
             </select>
           </div>
           <div>
             <label class="block text-xs text-gray-500 dark:text-gray-400 mb-2">Value Columns (select multiple)</label>
-            <select id="colValues" multiple class="w-full bg-surface-light dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50" style="min-height: 100px;">
+            <select id="importColValues" multiple class="w-full bg-surface-light dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50" style="min-height: 100px;">
             </select>
           </div>
         </div>
