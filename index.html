@@ -269,27 +269,102 @@
             <canvas id="aggregateChart"></canvas>
           </div>
         </div>
+
+        <!-- Row 5: Imported Datasets -->
+        <div id="importedDatasetsSection" class="space-y-5 hidden">
+          <h2 class="text-xl font-bold flex items-center gap-2">
+            <svg class="w-5 h-5 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/></svg>
+            Imported Datasets
+          </h2>
+          <div id="importedDatasetsContainer" class="grid grid-cols-1 xl:grid-cols-2 gap-5"></div>
+        </div>
       </div>
     </main>
   </div>
 
   <!-- Import Modal -->
   <div id="importModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 import-modal">
-    <div class="bg-card-light dark:bg-card-dark rounded-2xl p-8 w-full max-w-md mx-4 shadow-2xl">
-      <h3 class="text-xl font-bold mb-2">Import CSV Data</h3>
-      <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">CSV with columns: <code class="bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded text-xs">type, amount, date, category, description, merchant</code></p>
-      <div class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center mb-6 hover:border-brand transition-colors">
-        <input type="file" id="csvFile" accept=".csv" class="hidden" onchange="handleFileSelect(this)" />
-        <label for="csvFile" class="cursor-pointer">
-          <svg class="w-10 h-10 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
-          <span class="text-sm text-gray-500">Click to select CSV file</span>
-          <p id="fileName" class="text-xs text-brand mt-2 hidden"></p>
-        </label>
+    <div class="bg-card-light dark:bg-card-dark rounded-2xl p-8 w-full max-w-2xl mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-xl font-bold">Import Any CSV / JSON Data</h3>
+        <button onclick="closeImportModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
       </div>
-      <div class="flex gap-3">
-        <button onclick="closeImportModal()" class="flex-1 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">Cancel</button>
-        <button onclick="uploadCSV()" class="flex-1 bg-brand hover:bg-brand/90 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors">Import</button>
+
+      <!-- Step 1: File Upload -->
+      <div id="importStep1">
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Upload any CSV or JSON file — no fixed format required. All columns will be auto-detected.</p>
+        <div class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center mb-4 hover:border-brand transition-colors">
+          <input type="file" id="csvFile" accept=".csv,.json,.tsv,.txt" class="hidden" onchange="handleFileSelect(this)" />
+          <label for="csvFile" class="cursor-pointer">
+            <svg class="w-10 h-10 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+            <span class="text-sm text-gray-500">Click to select file (CSV, JSON, TSV)</span>
+            <p id="fileName" class="text-xs text-brand mt-2 hidden"></p>
+          </label>
+        </div>
+        <button onclick="parseUploadedFile()" class="w-full bg-brand hover:bg-brand/90 text-white px-6 py-2.5 rounded-xl text-sm font-medium transition-colors">Parse File</button>
       </div>
+
+      <!-- Step 2: Preview & Column Config -->
+      <div id="importStep2" class="hidden">
+        <div class="mb-4">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-medium">Data Preview</span>
+            <span id="importRowCount" class="text-xs text-gray-400"></span>
+          </div>
+          <div class="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-xl max-h-40">
+            <table id="previewTable" class="w-full text-xs"></table>
+          </div>
+        </div>
+
+        <div class="mb-4">
+          <label class="block text-sm font-medium mb-1">Dataset Name</label>
+          <input id="datasetName" type="text" class="w-full bg-surface-light dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50" placeholder="My Dataset" />
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Label Column (X-Axis / Names)</label>
+            <select id="colLabel" class="w-full bg-surface-light dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50"></select>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Value Column(s) (Y-Axis / Numbers)</label>
+            <select id="colValues" multiple class="w-full bg-surface-light dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50 h-20"></select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Chart Type</label>
+            <select id="importChartType" class="w-full bg-surface-light dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+              <option value="bar">Bar Chart</option>
+              <option value="line">Line Chart</option>
+              <option value="doughnut">Donut / Pie</option>
+              <option value="radar">Radar</option>
+              <option value="polarArea">Polar Area</option>
+              <option value="scatter">Scatter</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Aggregation (if duplicate labels)</label>
+            <select id="importAgg" class="w-full bg-surface-light dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+              <option value="sum">Sum</option>
+              <option value="avg">Average</option>
+              <option value="count">Count</option>
+              <option value="max">Max</option>
+              <option value="min">Min</option>
+              <option value="none">No Aggregation</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="flex gap-3">
+          <button onclick="backToStep1()" class="flex-1 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">Back</button>
+          <button onclick="importDataset()" class="flex-1 bg-brand hover:bg-brand/90 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors">Import & Visualize</button>
+        </div>
+      </div>
+
       <div id="importResult" class="mt-4 hidden text-sm p-3 rounded-xl"></div>
     </div>
   </div>

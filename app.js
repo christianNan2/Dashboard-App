@@ -3,7 +3,7 @@
 // ══════════════════════════════════════════════════════════
 
 const DB_NAME = 'DevelopDashboardDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 let dbInstance = null;
 
 // ── IndexedDB Setup ──────────────────────────────────────
@@ -33,6 +33,9 @@ function openDB() {
       }
       if (!db.objectStoreNames.contains('meta')) {
         db.createObjectStore('meta', { keyPath: 'key' });
+      }
+      if (!db.objectStoreNames.contains('datasets')) {
+        db.createObjectStore('datasets', { keyPath: 'id', autoIncrement: true });
       }
     };
   });
@@ -682,11 +685,18 @@ async function loadAggregate() {
   });
 }
 
-// ── CSV Import ───────────────────────────────────────────
+// ── CSV / JSON Import (Universal) ────────────────────────
+let parsedData = { headers: [], rows: [] };
+const datasetCharts = {};
+const chartColors = ['#6C5CE7','#FF6B9D','#10B981','#F59E0B','#EF4444','#8B5CF6','#06B6D4','#EC4899','#14B8A6','#F97316','#6366F1','#84CC16'];
+
 function openImportModal() {
   document.getElementById('importModal').classList.remove('hidden');
   document.getElementById('importModal').classList.add('flex');
+  document.getElementById('importStep1').classList.remove('hidden');
+  document.getElementById('importStep2').classList.add('hidden');
   document.getElementById('importResult').classList.add('hidden');
+  parsedData = { headers: [], rows: [] };
 }
 
 function closeImportModal() {
@@ -694,6 +704,7 @@ function closeImportModal() {
   document.getElementById('importModal').classList.remove('flex');
   document.getElementById('csvFile').value = '';
   document.getElementById('fileName').classList.add('hidden');
+  parsedData = { headers: [], rows: [] };
 }
 
 function handleFileSelect(input) {
@@ -704,45 +715,348 @@ function handleFileSelect(input) {
   }
 }
 
-async function uploadCSV() {
+function backToStep1() {
+  document.getElementById('importStep1').classList.remove('hidden');
+  document.getElementById('importStep2').classList.add('hidden');
+}
+
+function parseCSVLine(line) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"' && line[i + 1] === '"') { current += '"'; i++; }
+      else if (ch === '"') { inQuotes = false; }
+      else { current += ch; }
+    } else {
+      if (ch === '"') { inQuotes = true; }
+      else if (ch === ',' || ch === ';' || ch === '\t') { result.push(current.trim()); current = ''; }
+      else { current += ch; }
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
+
+async function parseUploadedFile() {
   const file = document.getElementById('csvFile').files[0];
-  if (!file) return;
+  if (!file) return showImportResult('Please select a file first', false);
 
   const text = await file.text();
-  const lines = text.trim().split('\n');
-  if (lines.length < 2) return showImportResult('CSV must have header + data rows', false);
+  const name = file.name;
 
-  const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-  const required = ['type', 'amount', 'date'];
-  const missing = required.filter(f => !headers.includes(f));
-  if (missing.length) return showImportResult(`Missing columns: ${missing.join(', ')}`, false);
-
-  const cats = await dbGetAll('categories');
-  const catNameMap = {};
-  cats.forEach(c => { catNameMap[c.name.toLowerCase()] = c.id; });
-
-  let imported = 0;
-  for (let i = 1; i < lines.length; i++) {
-    const vals = lines[i].split(',').map(v => v.trim());
-    const row = {};
-    headers.forEach((h, idx) => { row[h] = vals[idx] || ''; });
-
-    if (!row.type || !row.amount || !row.date) continue;
-    if (!['income', 'expense'].includes(row.type.toLowerCase())) continue;
-
-    await dbAdd('transactions', {
-      type: row.type.toLowerCase(),
-      amount: parseFloat(row.amount),
-      category_id: row.category ? (catNameMap[row.category.toLowerCase()] || null) : null,
-      merchant: row.merchant || '',
-      description: row.description || '',
-      date: row.date
-    });
-    imported++;
+  if (name.endsWith('.json')) {
+    try {
+      let json = JSON.parse(text);
+      if (!Array.isArray(json)) {
+        // Try to find an array inside the object
+        const arrKey = Object.keys(json).find(k => Array.isArray(json[k]));
+        if (arrKey) json = json[arrKey];
+        else json = [json];
+      }
+      if (!json.length) return showImportResult('JSON contains no data', false);
+      parsedData.headers = Object.keys(json[0]);
+      parsedData.rows = json.map(r => parsedData.headers.map(h => r[h] ?? ''));
+    } catch (e) {
+      return showImportResult('Invalid JSON file', false);
+    }
+  } else {
+    // CSV / TSV
+    const lines = text.trim().split(/\r?\n/);
+    if (lines.length < 2) return showImportResult('File needs at least a header row + 1 data row', false);
+    parsedData.headers = parseCSVLine(lines[0]);
+    parsedData.rows = [];
+    for (let i = 1; i < lines.length; i++) {
+      const vals = parseCSVLine(lines[i]);
+      if (vals.length >= parsedData.headers.length / 2) {
+        parsedData.rows.push(vals);
+      }
+    }
   }
 
-  showImportResult(`Successfully imported ${imported} of ${lines.length - 1} rows`, true);
-  reloadAll();
+  if (!parsedData.rows.length) return showImportResult('No data rows found', false);
+
+  // Detect column types
+  const colTypes = parsedData.headers.map((_, ci) => {
+    let numCount = 0, dateCount = 0, total = 0;
+    for (const row of parsedData.rows.slice(0, 50)) {
+      const v = row[ci];
+      if (v === undefined || v === '') continue;
+      total++;
+      if (!isNaN(Number(v))) numCount++;
+      if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}/.test(v) || !isNaN(Date.parse(v))) dateCount++;
+    }
+    if (total === 0) return 'text';
+    if (numCount / total > 0.7) return 'number';
+    if (dateCount / total > 0.7) return 'date';
+    return 'text';
+  });
+
+  // Show preview table
+  const table = document.getElementById('previewTable');
+  const previewRows = parsedData.rows.slice(0, 5);
+  table.innerHTML = `
+    <thead><tr class="bg-surface-light dark:bg-surface-dark">
+      ${parsedData.headers.map((h, i) => `<th class="px-3 py-2 text-left font-medium whitespace-nowrap">${h} <span class="text-[9px] ml-1 px-1 py-0.5 rounded ${colTypes[i] === 'number' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600' : colTypes[i] === 'date' ? 'bg-green-100 dark:bg-green-900/40 text-green-600' : 'bg-gray-100 dark:bg-gray-800 text-gray-500'}">${colTypes[i]}</span></th>`).join('')}
+    </tr></thead>
+    <tbody>
+      ${previewRows.map(r => `<tr class="border-t border-gray-100 dark:border-gray-800">${r.map(v => `<td class="px-3 py-1.5 whitespace-nowrap">${String(v).substring(0, 30)}</td>`).join('')}</tr>`).join('')}
+    </tbody>`;
+
+  document.getElementById('importRowCount').textContent = `${parsedData.rows.length} rows × ${parsedData.headers.length} columns`;
+
+  // Populate column selectors
+  const labelSel = document.getElementById('colLabel');
+  const valuesSel = document.getElementById('colValues');
+  labelSel.innerHTML = parsedData.headers.map((h, i) => `<option value="${i}" ${colTypes[i] !== 'number' ? 'selected' : ''}>${h}</option>`).join('');
+  valuesSel.innerHTML = parsedData.headers.map((h, i) => `<option value="${i}" ${colTypes[i] === 'number' ? 'selected' : ''}>${h} (${colTypes[i]})</option>`).join('');
+
+  // Auto-select: first text/date col as label, all number cols as values
+  const firstTextIdx = colTypes.findIndex(t => t !== 'number');
+  if (firstTextIdx >= 0) labelSel.value = firstTextIdx;
+
+  // Auto-select number columns
+  for (const opt of valuesSel.options) {
+    opt.selected = colTypes[parseInt(opt.value)] === 'number';
+  }
+
+  // Set default dataset name
+  document.getElementById('datasetName').value = file.name.replace(/\.(csv|json|tsv|txt)$/i, '');
+
+  // Show step 2
+  document.getElementById('importStep1').classList.add('hidden');
+  document.getElementById('importStep2').classList.remove('hidden');
+  document.getElementById('importResult').classList.add('hidden');
+}
+
+async function importDataset() {
+  const labelIdx = parseInt(document.getElementById('colLabel').value);
+  const valuesSel = document.getElementById('colValues');
+  const selectedValueIdxs = Array.from(valuesSel.selectedOptions).map(o => parseInt(o.value));
+  const chartType = document.getElementById('importChartType').value;
+  const aggType = document.getElementById('importAgg').value;
+  const dsName = document.getElementById('datasetName').value || 'Dataset';
+
+  if (!selectedValueIdxs.length) return showImportResult('Select at least one value column', false);
+
+  // Process data
+  const seriesNames = selectedValueIdxs.map(i => parsedData.headers[i]);
+  let labels, datasets;
+
+  if (aggType === 'none') {
+    labels = parsedData.rows.map(r => r[labelIdx] || '');
+    datasets = selectedValueIdxs.map((vi, si) => ({
+      label: seriesNames[si],
+      data: parsedData.rows.map(r => parseFloat(r[vi]) || 0)
+    }));
+  } else {
+    // Aggregate by label
+    const grouped = {};
+    for (const row of parsedData.rows) {
+      const key = row[labelIdx] || 'N/A';
+      if (!grouped[key]) grouped[key] = selectedValueIdxs.map(() => []);
+      selectedValueIdxs.forEach((vi, si) => {
+        const v = parseFloat(row[vi]);
+        if (!isNaN(v)) grouped[key][si].push(v);
+      });
+    }
+    labels = Object.keys(grouped);
+    datasets = selectedValueIdxs.map((vi, si) => ({
+      label: seriesNames[si],
+      data: labels.map(k => {
+        const arr = grouped[k][si];
+        if (!arr.length) return 0;
+        switch (aggType) {
+          case 'sum': return arr.reduce((s, v) => s + v, 0);
+          case 'avg': return arr.reduce((s, v) => s + v, 0) / arr.length;
+          case 'count': return arr.length;
+          case 'max': return Math.max(...arr);
+          case 'min': return Math.min(...arr);
+          default: return arr.reduce((s, v) => s + v, 0);
+        }
+      })
+    }));
+  }
+
+  // Store in IndexedDB
+  const dsRecord = {
+    name: dsName,
+    chartType,
+    aggType,
+    labels,
+    datasets,
+    headers: parsedData.headers,
+    rawRowCount: parsedData.rows.length,
+    createdAt: new Date().toISOString()
+  };
+  await dbAdd('datasets', dsRecord);
+
+  showImportResult(`Imported "${dsName}" — ${parsedData.rows.length} rows, ${selectedValueIdxs.length} series`, true);
+  closeImportModal();
+  loadImportedDatasets();
+}
+
+async function loadImportedDatasets() {
+  const datasets = await dbGetAll('datasets');
+  const section = document.getElementById('importedDatasetsSection');
+  const container = document.getElementById('importedDatasetsContainer');
+
+  if (!datasets.length) {
+    section.classList.add('hidden');
+    return;
+  }
+  section.classList.remove('hidden');
+
+  // Destroy old charts
+  Object.values(datasetCharts).forEach(c => c.destroy());
+  Object.keys(datasetCharts).forEach(k => delete datasetCharts[k]);
+
+  container.innerHTML = datasets.map(ds => `
+    <div class="bg-card-light dark:bg-card-dark rounded-2xl p-6 card-hover border border-gray-100 dark:border-gray-800 animate-in" data-dsid="${ds.id}">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h3 class="font-semibold text-lg">${ds.name}</h3>
+          <span class="text-xs text-gray-400">${ds.rawRowCount} rows • ${ds.datasets.length} series • ${ds.chartType}</span>
+        </div>
+        <div class="flex gap-2">
+          <select onchange="updateDatasetChart(${ds.id}, this.value)" class="bg-surface-light dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 text-xs focus:outline-none">
+            ${['bar','line','doughnut','radar','polarArea','scatter'].map(t => `<option value="${t}" ${t === ds.chartType ? 'selected' : ''}>${t}</option>`).join('')}
+          </select>
+          <button onclick="deleteDataset(${ds.id})" class="text-red-400 hover:text-red-600 transition-colors" title="Delete">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="h-64">
+        <canvas id="dsChart_${ds.id}"></canvas>
+      </div>
+    </div>
+  `).join('');
+
+  // Render each chart
+  for (const ds of datasets) {
+    renderDatasetChart(ds, ds.chartType);
+  }
+}
+
+function renderDatasetChart(ds, chartType) {
+  const canvasId = `dsChart_${ds.id}`;
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+
+  if (datasetCharts[ds.id]) datasetCharts[ds.id].destroy();
+
+  const isPie = ['doughnut', 'polarArea'].includes(chartType);
+  const isScatter = chartType === 'scatter';
+
+  let config;
+  if (isPie) {
+    // Use first dataset only for pie/donut
+    config = {
+      type: chartType,
+      data: {
+        labels: ds.labels,
+        datasets: [{
+          data: ds.datasets[0].data,
+          backgroundColor: ds.labels.map((_, i) => chartColors[i % chartColors.length]),
+          borderWidth: 0,
+          hoverOffset: 8
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'right', labels: { boxWidth: 10, padding: 8, font: { size: 10 }, color: chartTextColor(), usePointStyle: true, pointStyle: 'circle' } },
+          tooltip: { callbacks: { label: c => ` ${c.label}: ${Number(c.raw).toLocaleString()}` } }
+        }
+      }
+    };
+  } else if (isScatter) {
+    config = {
+      type: 'scatter',
+      data: {
+        datasets: ds.datasets.map((s, si) => ({
+          label: s.label,
+          data: s.data.map((v, i) => ({ x: i, y: v })),
+          backgroundColor: chartColors[si % chartColors.length],
+          pointRadius: 4
+        }))
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: chartTextColor(), font: { size: 11 } } } },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: chartTextColor() } },
+          y: { grid: { color: chartGridColor() }, ticks: { color: chartTextColor() }, border: { display: false } }
+        }
+      }
+    };
+  } else {
+    config = {
+      type: chartType,
+      data: {
+        labels: ds.labels,
+        datasets: ds.datasets.map((s, si) => ({
+          label: s.label,
+          data: s.data,
+          backgroundColor: chartType === 'bar' ? chartColors[si % chartColors.length] : chartColors[si % chartColors.length] + '20',
+          borderColor: chartColors[si % chartColors.length],
+          borderWidth: 2,
+          borderRadius: chartType === 'bar' ? 6 : 0,
+          fill: chartType === 'line',
+          tension: 0.4,
+          pointRadius: chartType === 'line' ? 3 : 0,
+          pointBackgroundColor: chartColors[si % chartColors.length],
+          barPercentage: 0.7,
+          categoryPercentage: 0.8
+        }))
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { color: chartTextColor(), font: { size: 11 } } },
+          tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ${Number(c.raw).toLocaleString()}` } }
+        },
+        scales: chartType === 'radar' ? {
+          r: { ticks: { color: chartTextColor(), backdropColor: 'transparent' }, grid: { color: chartGridColor() }, pointLabels: { color: chartTextColor() } }
+        } : {
+          x: { grid: { display: false }, ticks: { color: chartTextColor(), font: { size: 10 }, maxRotation: 45 } },
+          y: { grid: { color: chartGridColor() }, ticks: { color: chartTextColor(), font: { size: 10 } }, border: { display: false } }
+        }
+      }
+    };
+  }
+
+  datasetCharts[ds.id] = new Chart(canvas.getContext('2d'), config);
+}
+
+async function updateDatasetChart(dsId, newType) {
+  const datasets = await dbGetAll('datasets');
+  const ds = datasets.find(d => d.id === dsId);
+  if (!ds) return;
+  renderDatasetChart(ds, newType);
+}
+
+function dbDelete(store, key) {
+  return new Promise(async (resolve, reject) => {
+    const db = await openDB();
+    const tx = db.transaction(store, 'readwrite');
+    const req = tx.objectStore(store).delete(key);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function deleteDataset(dsId) {
+  if (!confirm('Delete this dataset?')) return;
+  if (datasetCharts[dsId]) { datasetCharts[dsId].destroy(); delete datasetCharts[dsId]; }
+  await dbDelete('datasets', dsId);
+  loadImportedDatasets();
 }
 
 function showImportResult(msg, success) {
@@ -771,6 +1085,7 @@ function reloadAll() {
   loadTransactions();
   loadInvestments();
   loadWeekly();
+  loadImportedDatasets();
 }
 
 // ── Init ─────────────────────────────────────────────────
