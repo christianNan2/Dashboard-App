@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="de" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Develop – Analytics Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
+          colors: {
+            brand: { DEFAULT: '#6C5CE7', light: '#A29BFE' },
+            sidebar: { dark: '#1A1A2E', light: '#F8F9FD' },
+            card: { dark: '#16213E', light: '#FFFFFF' },
+            surface: { dark: '#0F0F23', light: '#F0F2F8' }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    * { scrollbar-width: thin; scrollbar-color: #6C5CE7 transparent; }
+    .nav-item.active { background: linear-gradient(135deg, #6C5CE7, #A29BFE); }
+    .card-hover { transition: all 0.3s ease; }
+    .card-hover:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(108,92,231,0.15); }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-in { animation: fadeIn 0.4s ease forwards; }
+    .theme-toggle { position: relative; width: 52px; height: 28px; border-radius: 14px; cursor: pointer; transition: background 0.3s; }
+    .theme-toggle .dot { position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: white; transition: transform 0.3s; }
+    .dark .theme-toggle .dot { transform: translateX(24px); }
+    .import-modal { backdrop-filter: blur(8px); }
+    .circular-ring { transition: stroke-dashoffset 0.6s ease; }
+  </style>
+</head>
+<body class="bg-surface-light dark:bg-surface-dark text-gray-800 dark:text-gray-100 font-sans transition-colors duration-300">
+  <div class="flex h-screen overflow-hidden">
+
+    <!-- ══════ Sidebar ══════ -->
+    <aside id="sidebar" class="w-60 bg-sidebar-light dark:bg-sidebar-dark flex flex-col border-r border-gray-200 dark:border-gray-800 transition-colors duration-300 shrink-0">
+      <div class="flex items-center gap-3 px-6 py-6">
+        <div class="w-9 h-9 bg-brand rounded-xl flex items-center justify-center">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        </div>
+        <span class="text-xl font-bold text-gray-900 dark:text-white">Develop</span>
+      </div>
+      <nav class="flex-1 px-3 space-y-1 mt-2">
+        <a href="#" class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+          Dashboard
+        </a>
+        <a href="#" class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+          Wallet
+        </a>
+        <a href="#" class="nav-item active flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-white shadow-lg shadow-brand/25">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+          Analytics
+        </a>
+        <a href="#" class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+          Messages
+        </a>
+        <a href="#" class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>
+          Translations
+        </a>
+        <a href="#" class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+          Customers
+        </a>
+        <div class="border-t border-gray-200 dark:border-gray-700 my-4"></div>
+        <a href="#" class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          Settings
+        </a>
+        <a href="#" class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors relative">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+          Notifications
+          <span class="absolute top-2 left-9 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-sidebar-light dark:border-sidebar-dark"></span>
+        </a>
+      </nav>
+      <div class="px-6 pb-6 space-y-4">
+        <a href="#" class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+          Sign out
+        </a>
+        <div class="flex items-center gap-3 px-2">
+          <div id="themeToggle" class="theme-toggle bg-gray-300 dark:bg-brand" onclick="toggleTheme()">
+            <div class="dot shadow"></div>
+          </div>
+          <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/></svg>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ══════ Main Content ══════ -->
+    <main class="flex-1 overflow-y-auto">
+      <header class="sticky top-0 z-30 bg-surface-light/80 dark:bg-surface-dark/80 backdrop-blur-xl px-8 py-5 flex items-center justify-between border-b border-gray-200 dark:border-gray-800">
+        <h1 class="text-2xl font-bold">Hello, <span id="userName">Kristi</span> welcome back</h1>
+        <div class="flex items-center gap-4">
+          <div class="relative">
+            <input id="globalSearch" type="text" placeholder="search" class="w-56 bg-card-light dark:bg-card-dark border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 pl-10 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50 transition-all" />
+            <svg class="absolute left-3 top-3 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          </div>
+          <button onclick="openImportModal()" class="bg-brand hover:bg-brand/90 text-white px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2 transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+            Import CSV
+          </button>
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-gradient-to-br from-brand to-pink-400 rounded-full flex items-center justify-center text-white font-bold text-sm">KK</div>
+            <span class="text-sm font-medium hidden lg:block" id="userFullName">Kristi Kamylova</span>
+          </div>
+        </div>
+      </header>
+
+      <div class="p-8 space-y-6">
+        <!-- Row 1: Summary Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 animate-in">
+          <div class="bg-card-light dark:bg-card-dark rounded-2xl p-5 card-hover border border-gray-100 dark:border-gray-800">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-sm text-gray-500 dark:text-gray-400">Total balance</span>
+              <span class="text-xs text-gray-400">last month</span>
+            </div>
+            <div class="text-3xl font-bold" id="totalBalance">$0</div>
+            <div class="mt-2 flex items-center gap-1">
+              <span id="balanceChange" class="text-xs font-medium px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400">0%</span>
+              <span class="text-xs text-gray-400">last month</span>
+            </div>
+          </div>
+          <div class="bg-card-light dark:bg-card-dark rounded-2xl p-5 card-hover border border-gray-100 dark:border-gray-800">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-sm text-gray-500 dark:text-gray-400">Total expenses</span>
+              <span class="text-xs text-gray-400">last month</span>
+            </div>
+            <div class="text-3xl font-bold" id="totalExpenses">$0</div>
+            <div class="mt-2 flex items-center gap-1">
+              <span id="expenseChange" class="text-xs font-medium px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400">0%</span>
+              <span class="text-xs text-gray-400">last month</span>
+            </div>
+          </div>
+          <div class="bg-card-light dark:bg-card-dark rounded-2xl p-5 card-hover border border-gray-100 dark:border-gray-800">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-sm text-gray-500 dark:text-gray-400">Active cards</span>
+              <a href="#" class="text-xs text-brand font-medium">view all</a>
+            </div>
+            <div id="activeCards" class="space-y-3"></div>
+          </div>
+          <div class="bg-card-light dark:bg-card-dark rounded-2xl p-5 card-hover border border-gray-100 dark:border-gray-800">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-sm text-gray-500 dark:text-gray-400">Categories</span>
+              <span class="text-xs text-gray-400">last month</span>
+            </div>
+            <div class="flex items-center justify-center">
+              <canvas id="categoriesChart" width="140" height="140"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Row 2: Dissection + Spending -->
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-5">
+          <div class="xl:col-span-2 bg-card-light dark:bg-card-dark rounded-2xl p-6 card-hover border border-gray-100 dark:border-gray-800 animate-in" style="animation-delay:0.1s">
+            <div class="flex items-center justify-between mb-6">
+              <div>
+                <h3 class="font-semibold text-lg">Dissection</h3>
+                <div class="flex items-center gap-4 mt-1">
+                  <span class="flex items-center gap-1.5 text-xs text-gray-500"><span class="w-2.5 h-2.5 rounded-full bg-brand inline-block"></span>Income</span>
+                  <span class="flex items-center gap-1.5 text-xs text-gray-500"><span class="w-2.5 h-2.5 rounded-full bg-pink-400 inline-block"></span>Expenses</span>
+                </div>
+              </div>
+              <select id="dissectionYear" onchange="loadDissection()" class="bg-surface-light dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand/50">
+                <option value="2026" selected>2026</option>
+                <option value="2025">2025</option>
+              </select>
+            </div>
+            <div class="h-64">
+              <canvas id="dissectionChart"></canvas>
+            </div>
+          </div>
+          <div class="bg-card-light dark:bg-card-dark rounded-2xl p-6 card-hover border border-gray-100 dark:border-gray-800 animate-in" style="animation-delay:0.15s">
+            <div class="flex items-center justify-between mb-6">
+              <h3 class="font-semibold text-lg">Spending parameters</h3>
+              <span class="text-xs text-gray-400">last month</span>
+            </div>
+            <div id="spendingGrid" class="grid grid-cols-3 gap-4"></div>
+          </div>
+        </div>
+
+        <!-- Row 3: Transactions + Investments + Weekly -->
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-5">
+          <div class="bg-card-light dark:bg-card-dark rounded-2xl p-6 card-hover border border-gray-100 dark:border-gray-800 animate-in" style="animation-delay:0.2s">
+            <div class="flex items-center justify-between mb-5">
+              <h3 class="font-semibold text-lg">Translations</h3>
+              <span class="text-xs text-gray-400">last day</span>
+            </div>
+            <div id="transactionsList" class="space-y-4"></div>
+          </div>
+          <div class="bg-card-light dark:bg-card-dark rounded-2xl p-6 card-hover border border-gray-100 dark:border-gray-800 animate-in" style="animation-delay:0.25s">
+            <div class="flex items-center justify-between mb-5">
+              <h3 class="font-semibold text-lg">Investments</h3>
+              <span class="text-xs text-gray-400">last day</span>
+            </div>
+            <div id="investmentsList" class="space-y-4"></div>
+          </div>
+          <div class="bg-card-light dark:bg-card-dark rounded-2xl p-6 card-hover border border-gray-100 dark:border-gray-800 animate-in" style="animation-delay:0.3s">
+            <div class="flex items-center justify-between mb-5">
+              <div>
+                <h3 class="font-semibold text-lg">Income and expenses</h3>
+                <div class="flex items-center gap-4 mt-1">
+                  <span class="flex items-center gap-1.5 text-xs text-gray-500"><span class="w-2.5 h-2.5 rounded-full bg-brand inline-block"></span>Income</span>
+                  <span class="flex items-center gap-1.5 text-xs text-gray-500"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block"></span>Expenses</span>
+                </div>
+              </div>
+              <span class="text-xs text-gray-400">last week</span>
+            </div>
+            <div class="h-52">
+              <canvas id="weeklyChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Row 4: Data Explorer -->
+        <div class="bg-card-light dark:bg-card-dark rounded-2xl p-6 border border-gray-100 dark:border-gray-800 animate-in" style="animation-delay:0.35s">
+          <h3 class="font-semibold text-lg mb-4">Data Explorer – Filter & Aggregation</h3>
+          <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Type</label>
+              <select id="filterType" class="w-full bg-surface-light dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+                <option value="">All</option>
+                <option value="income">Income</option>
+                <option value="expense">Expense</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Group By</label>
+              <select id="filterGroupBy" class="w-full bg-surface-light dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+                <option value="month">Month</option>
+                <option value="week">Week</option>
+                <option value="day">Day</option>
+                <option value="category">Category</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Metric</label>
+              <select id="filterMetric" class="w-full bg-surface-light dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+                <option value="sum">Sum</option>
+                <option value="avg">Average</option>
+                <option value="count">Count</option>
+                <option value="max">Max</option>
+                <option value="min">Min</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">From</label>
+              <input id="filterFrom" type="date" class="w-full bg-surface-light dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50" />
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">To</label>
+              <input id="filterTo" type="date" class="w-full bg-surface-light dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50" />
+            </div>
+          </div>
+          <button onclick="loadAggregate()" class="bg-brand hover:bg-brand/90 text-white px-6 py-2.5 rounded-xl text-sm font-medium transition-colors mb-6">Apply Filters</button>
+          <div class="h-64">
+            <canvas id="aggregateChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Import Modal -->
+  <div id="importModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 import-modal">
+    <div class="bg-card-light dark:bg-card-dark rounded-2xl p-8 w-full max-w-md mx-4 shadow-2xl">
+      <h3 class="text-xl font-bold mb-2">Import CSV Data</h3>
+      <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">CSV with columns: <code class="bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded text-xs">type, amount, date, category, description, merchant</code></p>
+      <div class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center mb-6 hover:border-brand transition-colors">
+        <input type="file" id="csvFile" accept=".csv" class="hidden" onchange="handleFileSelect(this)" />
+        <label for="csvFile" class="cursor-pointer">
+          <svg class="w-10 h-10 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+          <span class="text-sm text-gray-500">Click to select CSV file</span>
+          <p id="fileName" class="text-xs text-brand mt-2 hidden"></p>
+        </label>
+      </div>
+      <div class="flex gap-3">
+        <button onclick="closeImportModal()" class="flex-1 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">Cancel</button>
+        <button onclick="uploadCSV()" class="flex-1 bg-brand hover:bg-brand/90 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors">Import</button>
+      </div>
+      <div id="importResult" class="mt-4 hidden text-sm p-3 rounded-xl"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
